@@ -1,7 +1,7 @@
 # RAP Analyzer — Rule Against Perpetuities Visualization Tool
 
 <div align="center">
-  <a href="https://evank28.github.io/rule-against-perpetuities-visualized/">
+  <a href="https://evank28.github.io/rule-against-perpetuities-visualizer/">
     <img src="https://img.shields.io/badge/Access%20Deployed%20Site-Launch%20RAP%20Analyzer-blue?style=for-the-badge&logo=appveyor" alt="Deployed Website"/>
   </a>
 </div>
@@ -30,8 +30,8 @@ Make sure you have [Node.js](https://nodejs.org/) installed along with `npm`.
 ### Installation
 1. Clone the repository:
    ```bash
-   git clone https://github.com/evank28/rule-against-perpetuities-visualized.git
-   cd rule-against-perpetuities-visualized
+   git clone https://github.com/evank28/rule-against-perpetuities-visualizer.git
+   cd rule-against-perpetuities-visualizer
    ```
 2. Install all dependencies:
    ```bash
