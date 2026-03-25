@@ -348,3 +348,89 @@ export function getPerson(tree, personId) {
 export function getAllPersonIds(tree) {
   return Array.from(tree.persons.keys());
 }
+
+/**
+ * Generate a natural language description of the family tree
+ * to reflect UI changes in the family text area.
+ */
+export function generateFamilyDescription(tree) {
+  if (tree.persons.size === 0) return '';
+  
+  const sentences = [];
+  const processedSpouses = new Set();
+  
+  function formatPerson(person) {
+    const attrs = [];
+    if (person.id === tree.testatorId) attrs.push('testator');
+    attrs.push(person.alive ? 'alive' : 'deceased');
+    if (person.birthYear) {
+      const currentYear = new Date().getFullYear();
+      const age = person.alive ? (currentYear - person.birthYear) : (person.deathYear - person.birthYear);
+      if (age && age > 0 && !isNaN(age)) attrs.push(`age ${age}`);
+    }
+    return `${person.name} (${attrs.join(', ')})`;
+  }
+  
+  for (const [id, person] of tree.persons) {
+    if (!person) continue;
+    
+    // Spouses and shared children
+    for (const spouseId of person.spouseIds) {
+      const spouse = tree.persons.get(spouseId);
+      if (spouse) {
+        const pairKey = [id, spouseId].sort().join('-');
+        if (!processedSpouses.has(pairKey)) {
+          processedSpouses.add(pairKey);
+          sentences.push(`${formatPerson(person)} is married to ${formatPerson(spouse)}.`);
+          
+          const sharedChildren = person.childIds.filter(c => spouse.childIds.includes(c));
+          if (sharedChildren.length > 0) {
+            const childrenNames = sharedChildren.map(c => {
+              const cp = tree.persons.get(c);
+              return cp ? formatPerson(cp) : '';
+            }).filter(Boolean);
+            
+            if (childrenNames.length > 0) {
+              const childStr = childrenNames.length === 1 ? 'one child' : `${childrenNames.length} children`;
+              sentences.push(`They have ${childStr}: ${childrenNames.join(', ')}.`);
+            }
+          }
+        }
+      }
+    }
+    
+    // Single parents (children not shared with a spouse)
+    const singleChildren = [];
+    for (const childId of person.childIds) {
+      const child = tree.persons.get(childId);
+      if (!child) continue;
+      let isShared = false;
+      for (const spouseId of person.spouseIds) {
+        const spouse = tree.persons.get(spouseId);
+        if (spouse && spouse.childIds.includes(childId)) {
+          isShared = true;
+          break;
+        }
+      }
+      if (!isShared) {
+        singleChildren.push(formatPerson(child));
+      }
+    }
+    
+    if (singleChildren.length > 0) {
+      const childStr = singleChildren.length === 1 ? 'one child' : `${singleChildren.length} children`;
+      sentences.push(`${formatPerson(person)} has ${childStr}: ${singleChildren.join(', ')}.`);
+    }
+  }
+  
+  // Ensure everyone with no relations is mentioned
+  let text = sentences.join(' ');
+  for (const [id, person] of tree.persons) {
+    if (!text.includes(person.name)) {
+      sentences.push(`${formatPerson(person)}.`);
+      text = sentences.join(' ');
+    }
+  }
+
+  return sentences.join(' ');
+}

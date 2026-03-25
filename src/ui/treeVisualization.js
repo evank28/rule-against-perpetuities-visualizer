@@ -363,9 +363,11 @@ function showContextMenu(event, nodeData, tree, container, onTreeChange) {
       .style('transition', 'background 0.15s')
       .on('mouseenter', function () { d3.select(this).style('background', 'rgba(99, 102, 241, 0.2)'); })
       .on('mouseleave', function () { d3.select(this).style('background', 'transparent'); })
-      .on('click', () => {
-        handleContextAction(item.action, nodeData, tree, onTreeChange);
+      .on('click', (event) => {
+        event.stopPropagation();
+        d3.select('body').on('click.context-menu', null);
         menu.remove();
+        handleContextAction(item.action, nodeData, tree, onTreeChange);
       });
   });
 
@@ -380,10 +382,10 @@ function showContextMenu(event, nodeData, tree, container, onTreeChange) {
 /**
  * Handle a context menu action.
  */
-function handleContextAction(action, nodeData, tree, onTreeChange) {
+async function handleContextAction(action, nodeData, tree, onTreeChange) {
   switch (action) {
     case 'add_child': {
-      const name = prompt('Enter child\'s name:');
+      const name = await customPrompt('Enter child\'s name:');
       if (!name) return;
       const child = createPerson({ id: generateId(), name, alive: true, gender: 'unknown' });
       addPerson(tree, child);
@@ -391,7 +393,7 @@ function handleContextAction(action, nodeData, tree, onTreeChange) {
       break;
     }
     case 'add_sibling': {
-      const name = prompt('Enter sibling\'s name:');
+      const name = await customPrompt('Enter sibling\'s name:');
       if (!name) return;
       const sibling = createPerson({ id: generateId(), name, alive: true, gender: 'unknown' });
       addPerson(tree, sibling);
@@ -404,7 +406,7 @@ function handleContextAction(action, nodeData, tree, onTreeChange) {
       break;
     }
     case 'add_spouse': {
-      const name = prompt('Enter spouse\'s name:');
+      const name = await customPrompt('Enter spouse\'s name:');
       if (!name) return;
       const spouse = createPerson({ id: generateId(), name, alive: true, gender: 'unknown' });
       addPerson(tree, spouse);
@@ -421,12 +423,116 @@ function handleContextAction(action, nodeData, tree, onTreeChange) {
       break;
     }
     case 'remove': {
-      if (confirm(`Remove ${nodeData.name} from the family tree?`)) {
+      const ok = await customConfirm(`Remove ${nodeData.name} from the family tree?`);
+      if (ok) {
         removePerson(tree, nodeData.id);
+      } else {
+        return;
       }
       break;
     }
   }
 
   if (onTreeChange) onTreeChange(tree);
+}
+
+/**
+ * Custom HTML Prompt to avoid native alert blocking
+ */
+function customPrompt(message) {
+  return new Promise(resolve => {
+    const overlay = document.createElement('div');
+    Object.assign(overlay.style, {
+      position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',
+      background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999
+    });
+
+    const box = document.createElement('div');
+    Object.assign(box.style, {
+      background: '#1e293b', padding: '24px', borderRadius: '12px', boxShadow: '0 10px 25px rgba(0,0,0,0.5)',
+      width: '300px', display: 'flex', flexDirection: 'column', gap: '16px', color: '#f8fafc',
+      border: '1px solid rgba(99, 102, 241, 0.3)', fontFamily: 'system-ui, -apple-system, sans-serif'
+    });
+
+    const label = document.createElement('div');
+    label.textContent = message;
+    label.style.fontWeight = '500';
+
+    const input = document.createElement('input');
+    Object.assign(input.style, {
+      padding: '8px 12px', borderRadius: '6px', border: '1px solid #475569', background: '#0f172a', color: '#f8fafc', outline: 'none'
+    });
+    
+    const btnRow = document.createElement('div');
+    Object.assign(btnRow.style, { display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '4px' });
+
+    const btnCancel = document.createElement('button');
+    btnCancel.textContent = 'Cancel';
+    Object.assign(btnCancel.style, { padding: '6px 12px', background: '#334155', color: '#f8fafc', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '14px' });
+    btnCancel.onclick = () => { document.body.removeChild(overlay); resolve(null); };
+
+    const btnOk = document.createElement('button');
+    btnOk.textContent = 'OK';
+    Object.assign(btnOk.style, { padding: '6px 12px', background: '#4f46e5', color: '#ffffff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '14px', fontWeight: '500' });
+    btnOk.onclick = () => { document.body.removeChild(overlay); resolve(input.value.trim()); };
+
+    input.onkeydown = e => {
+      if (e.key === 'Enter') btnOk.click();
+      if (e.key === 'Escape') btnCancel.click();
+    };
+
+    btnRow.appendChild(btnCancel);
+    btnRow.appendChild(btnOk);
+    box.appendChild(label);
+    box.appendChild(input);
+    box.appendChild(btnRow);
+    overlay.appendChild(box);
+    document.body.appendChild(overlay);
+
+    input.focus();
+  });
+}
+
+/**
+ * Custom HTML Confirm to avoid native alert blocking
+ */
+function customConfirm(message) {
+  return new Promise(resolve => {
+    const overlay = document.createElement('div');
+    Object.assign(overlay.style, {
+      position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',
+      background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999
+    });
+
+    const box = document.createElement('div');
+    Object.assign(box.style, {
+      background: '#1e293b', padding: '24px', borderRadius: '12px', boxShadow: '0 10px 25px rgba(0,0,0,0.5)',
+      width: '300px', display: 'flex', flexDirection: 'column', gap: '16px', color: '#f8fafc',
+      border: '1px solid rgba(99, 102, 241, 0.3)', fontFamily: 'system-ui, -apple-system, sans-serif'
+    });
+
+    const label = document.createElement('div');
+    label.textContent = message;
+    label.style.fontWeight = '500';
+
+    const btnRow = document.createElement('div');
+    Object.assign(btnRow.style, { display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '4px' });
+
+    const btnCancel = document.createElement('button');
+    btnCancel.textContent = 'Cancel';
+    Object.assign(btnCancel.style, { padding: '6px 12px', background: '#334155', color: '#f8fafc', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '14px' });
+    btnCancel.onclick = () => { document.body.removeChild(overlay); resolve(false); };
+
+    const btnOk = document.createElement('button');
+    btnOk.textContent = 'Confirm';
+    Object.assign(btnOk.style, { padding: '6px 12px', background: '#ef4444', color: '#ffffff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '14px', fontWeight: '500' });
+    btnOk.onclick = () => { document.body.removeChild(overlay); resolve(true); };
+
+    btnRow.appendChild(btnCancel);
+    btnRow.appendChild(btnOk);
+    box.appendChild(label);
+    box.appendChild(btnRow);
+    overlay.appendChild(box);
+    document.body.appendChild(overlay);
+  });
 }

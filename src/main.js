@@ -9,7 +9,7 @@ import { analyzeWithRule, getAllRules } from './engine/rapAnalyzer.js';
 import { parseInputs } from './parser/nlParser.js';
 import { renderFamilyTree } from './ui/treeVisualization.js';
 import { renderInterestCards } from './ui/interestCards.js';
-import { resetIdCounter } from './models/familyTree.js';
+import { resetIdCounter, generateFamilyDescription } from './models/familyTree.js';
 import { resetInterestIdCounter } from './models/will.js';
 
 // ═══════════════════════════════════════════════════════════
@@ -167,6 +167,7 @@ function runAnalysis() {
     rapResults,
     onTreeChange: (updatedTree) => {
       currentTree = updatedTree;
+      familyInput.value = generateFamilyDescription(currentTree);
       runAnalysis();
     },
   });

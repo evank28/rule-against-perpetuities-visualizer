@@ -128,8 +128,8 @@ export function parseFamilyTree(text) {
 
   // ─── PASS 3: Extract relationships from text outside parentheses ───
 
-  // "X is married to Y"
-  const marriagePattern = /([A-Z][a-z]+)\s+is\s+married\s+to\s+([A-Z][a-z]+)/g;
+  // "X is married to Y" (with optional parenthetical attributes)
+  const marriagePattern = /([A-Z][a-z]+)(?:\s*\([^)]+\))?\s+(?:is|was)\s+married\s+to\s+([A-Z][a-z]+)/g;
   while ((match = marriagePattern.exec(normalized)) !== null) {
     const id1 = personsByName.get(match[1].toLowerCase());
     const id2 = personsByName.get(match[2].toLowerCase());
@@ -138,8 +138,8 @@ export function parseFamilyTree(text) {
     }
   }
 
-  // "X has N children: A, B, and C" or "X has one child: A"
-  const childrenPattern = /([A-Z][a-z]+)\s+(?:has|have)\s+(?:\w+\s+)?child(?:ren)?[:\s]+([^.]+)/g;
+  // "X has N children: A, B, and C" or "X has one child: A" (with optional parenthetical attributes)
+  const childrenPattern = /([A-Z][a-z]+)(?:\s*\([^)]+\))?\s+(?:has|have)\s+(?:\w+\s+|[0-9]+\s+)?child(?:ren)?[:\s]+([^.]+)/g;
   while ((match = childrenPattern.exec(normalized)) !== null) {
     const parentName = match[1].toLowerCase();
     const parentId = personsByName.get(parentName);
@@ -154,7 +154,7 @@ export function parseFamilyTree(text) {
   }
 
   // "X's son/daughter/child Y"  (NOT case-insensitive to avoid matching lowercase)
-  const possessiveChildPattern = /([A-Z][a-z]+)'s\s+(?:son|daughter|child)\s+([A-Z][a-z]+)/g;
+  const possessiveChildPattern = /([A-Z][a-z]+)(?:\s*\([^)]+\))?'s\s+(?:son|daughter|child)\s+([A-Z][a-z]+)/g;
   while ((match = possessiveChildPattern.exec(normalized)) !== null) {
     const parentId = personsByName.get(match[1].toLowerCase());
     const childId = personsByName.get(match[2].toLowerCase());
@@ -167,7 +167,7 @@ export function parseFamilyTree(text) {
   const theyChildrenPattern = /[Tt]hey\s+have\s+(?:\w+\s+)?child(?:ren)?[:\s]+([^.]+)/g;
   while ((match = theyChildrenPattern.exec(normalized)) !== null) {
     const textBefore = normalized.substring(0, match.index);
-    const coupleMatch = textBefore.match(/([A-Z][a-z]+)\s+(?:is\s+married\s+to|and)\s+([A-Z][a-z]+)/g);
+    const coupleMatch = textBefore.match(/([A-Z][a-z]+)(?:\s*\([^)]+\))?\s+(?:(?:is|was)\s+married\s+to|and)\s+([A-Z][a-z]+)/g);
     if (coupleMatch) {
       const lastCouple = coupleMatch[coupleMatch.length - 1];
       const names = lastCouple.match(/[A-Z][a-z]+/g);
