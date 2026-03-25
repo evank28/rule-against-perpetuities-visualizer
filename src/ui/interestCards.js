@@ -163,6 +163,7 @@ export function renderInterestCards(container, interests, rapResults = null, rul
       <div class="card-body">
         <div class="card-raw-text">"${interest.rawText}"</div>
         ${analysisSummary ? `<div class="card-analysis-summary">${analysisSummary}</div>` : ''}
+        <div class="card-row">
           <span class="card-label">Type:</span>
           <span class="card-value">${typeLabel}</span>
         </div>
