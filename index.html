@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RAP Analyzer — Rule Against Perpetuities Visualization Tool</title>
+  <meta name="description" content="Interactive tool for law students to visualize and understand the Rule Against Perpetuities. Analyze wills, family trees, and future interests under Classic, Cy Pres, and USRAP rules." />
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚖️</text></svg>" />
+</head>
+<body>
+  <div id="app">
+    <!-- Header -->
+    <header class="app-header">
+      <div class="app-title">
+        <span class="app-icon">⚖️</span>
+        <div>
+          <h1>RAP Analyzer</h1>
+          <span class="subtitle">Rule Against Perpetuities Visualization Tool</span>
+        </div>
+      </div>
+      <div class="rule-toggle-group">
+        <span class="rule-toggle-label">Analysis Rule:</span>
+        <div class="rule-toggle" id="ruleToggle">
+          <div class="rule-btn-wrap">
+            <button class="active" data-rule="classic">Classic</button>
+            <div class="rule-tooltip">
+              <strong>Classic (Common Law) RAP</strong>
+              <p>"No interest is good unless it must vest, if at all, not later than twenty-one years after some life in being at the creation of the interest." — John Chipman Gray</p>
+              <p><strong>Origin:</strong> <em>Duke of Norfolk's Case</em> (1682)</p>
+              <p><strong>Jurisdictions:</strong> Still used in some form in ~20 U.S. states without statutory reform.</p>
+              <p><a href="https://www.law.cornell.edu/wex/rule_against_perpetuities" target="_blank">Cornell LII — Rule Against Perpetuities</a></p>
+            </div>
+          </div>
+          <div class="rule-btn-wrap">
+            <button data-rule="cy_pres">Cy Pres</button>
+            <div class="rule-tooltip">
+              <strong>Cy Pres (Judicial Reformation)</strong>
+              <p>If an interest violates the classic RAP, the court reforms it "as near as possible" (<em>cy pres</em>) to the testator's intent while satisfying the Rule. Example: age 25 → reduced to 21.</p>
+              <p><strong>Origin:</strong> Adopted in the Second Restatement of Property and by states like CA, TX, MA.</p>
+              <p><strong>Massachusetts:</strong> M.G.L. c. 184A, §2 (wait-and-see + cy pres).</p>
+              <p><a href="https://malegislature.gov/Laws/GeneralLaws/PartII/TitleI/Chapter184A" target="_blank">Mass. Gen. Laws ch. 184A</a></p>
+            </div>
+          </div>
+          <div class="rule-btn-wrap">
+            <button data-rule="usrap">USRAP</button>
+            <div class="rule-tooltip">
+              <strong>Uniform Statutory RAP (USRAP)</strong>
+              <p>Three-step analysis: (1) Apply classic RAP. (2) If invalid, apply a 90-year wait-and-see period — the interest is valid if it actually vests within 90 years. (3) If still invalid, reform via cy pres.</p>
+              <p><strong>Origin:</strong> Uniform Law Commission, 1986 (amended 1990).</p>
+              <p><strong>Jurisdictions:</strong> Adopted in ~27 states including FL, MA, MN, NV, OR, VA.</p>
+              <p><a href="https://www.uniformlaws.org/committees/community-home?CommunityKey=addf3263-af92-4421-a83c-2ef7bc9a1b94" target="_blank">ULC — USRAP</a></p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- Preset Buttons -->
+    <div class="preset-section">
+      <span class="preset-section-label">📚 Example Scenarios</span>
+      <div class="preset-bar" id="presetBar"></div>
+    </div>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <!-- Left Panel: Input -->
+      <section class="input-panel">
+        <div class="input-group">
+          <label>
+            <span class="label-icon">👨‍👩‍👧‍👦</span>
+            Family Description
+          </label>
+          <textarea id="familyInput" placeholder="Describe the family members and their relationships. Example:
+
+Thomas (the testator, deceased, age 82) was married to Martha (alive, age 70). They have two children: Alice (alive, age 45) and Bob (alive, age 40). Alice has one daughter, Carol (alive, age 20)."></textarea>
+        </div>
+
+        <div class="input-group">
+          <label>
+            <span class="label-icon">📜</span>
+            Will / Testamentary Disposition
+          </label>
+          <textarea id="willInput" placeholder="Enter the will's disposition of property. Example:
+
+I, Thomas, devise Blackacre to my wife Martha for life, then to such of my grandchildren who reach the age of 25."></textarea>
+        </div>
+
+        <button class="analyze-btn" id="analyzeBtn">
+          <span class="btn-icon">🔍</span>
+          Analyze Under RAP
+        </button>
+        <span class="shortcut-hint">⌘/Ctrl + Enter</span>
+
+        <div id="errorBox" class="error-box" style="display: none;"></div>
+      </section>
+
+      <!-- Center Panel: Family Tree -->
+      <section class="tree-panel">
+        <div class="tree-panel-header">
+          <span>🌳 Family Tree</span>
+          <span class="tree-hint">Drag nodes · Right-click to edit</span>
+        </div>
+        <div class="tree-container" id="treeContainer"></div>
+        <div class="scenario-description" id="scenarioDescription">
+          <strong>Getting Started:</strong> Enter a family description and will text on the left, or click a preset scenario above to load an example. Right-click nodes to add children, siblings, or spouses.
+        </div>
+      </section>
+
+      <!-- Right Panel: Results -->
+      <section class="results-panel">
+        <div class="results-header">
+          <h2>📋 Analysis Results</h2>
+          <div class="results-summary" id="resultsSummary"></div>
+        </div>
+        <div id="interestCardsContainer">
+          <div class="empty-state">
+            Load a preset or enter your own scenario and click <strong>Analyze</strong> to see results.
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Status Bar -->
+    <footer class="status-bar">
+      <span class="status-dot"></span>
+      <span id="statusText">Ready — Select a preset or enter your own scenario</span>
+    </footer>
+  </div>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
