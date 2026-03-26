@@ -434,3 +434,71 @@ export function generateFamilyDescription(tree) {
 
   return sentences.join(' ');
 }
+
+/**
+ * Compute generational depth for each person in the tree.
+ * Generation 0 = root ancestors (no parents in tree).
+ * Each generation increments by 1 for children.
+ * Spouses are placed at the same generation as their partner.
+ * Disconnected persons (no relationships) get generation 0.
+ *
+ * @param {FamilyTree} tree
+ * @returns {Map<string, number>} personId → generation depth
+ */
+export function computeGenerations(tree) {
+  const generations = new Map();
+
+  // Pass 1: BFS through parent→child edges only
+  const queue = [];
+  // Seed with root nodes (no parents)
+  for (const [id, person] of tree.persons) {
+    if (person.parentIds.length === 0) {
+      generations.set(id, 0);
+      queue.push(id);
+    }
+  }
+
+  let head = 0;
+  while (head < queue.length) {
+    const currentId = queue[head++];
+    const currentGen = generations.get(currentId);
+    const person = tree.persons.get(currentId);
+    if (!person) continue;
+
+    for (const childId of person.childIds) {
+      const childGen = currentGen + 1;
+      if (!generations.has(childId) || generations.get(childId) < childGen) {
+        generations.set(childId, childGen);
+        queue.push(childId);
+      }
+    }
+  }
+
+  // Pass 2: Reconcile spouses — each spouse pair should share the max generation
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const [id, person] of tree.persons) {
+      const myGen = generations.get(id) ?? 0;
+      for (const spouseId of person.spouseIds) {
+        const spouseGen = generations.get(spouseId) ?? 0;
+        if (myGen < spouseGen) {
+          generations.set(id, spouseGen);
+          changed = true;
+        } else if (spouseGen < myGen) {
+          generations.set(spouseId, myGen);
+          changed = true;
+        }
+      }
+    }
+  }
+
+  // Any remaining unvisited persons (truly disconnected) get generation 0
+  for (const id of tree.persons.keys()) {
+    if (!generations.has(id)) {
+      generations.set(id, 0);
+    }
+  }
+
+  return generations;
+}

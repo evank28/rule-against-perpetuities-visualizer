@@ -6,6 +6,7 @@
 
 import * as d3 from 'd3';
 import { addPerson, addChild, addSpouse, removePerson, createPerson, generateId } from '../models/familyTree.js';
+import { computeGenerations } from '../models/familyTree.js';
 
 const NODE_RADIUS = 28;
 const COLORS = {
@@ -18,6 +19,74 @@ const COLORS = {
   child: '#94a3b8',       // slate for edges
   highlight: '#f59e0b',   // amber
 };
+
+/**
+ * Compute x,y positions for each node based on generational depth.
+ * Generation 0 at top, each subsequent generation below.
+ * Within a generation, nodes are evenly spaced horizontally,
+ * with spouses placed adjacent to each other.
+ */
+function computeLayout(nodes, links, tree, width, height) {
+  const generations = computeGenerations(tree);
+
+  // Group nodes by generation
+  const genGroups = new Map();
+  for (const node of nodes) {
+    const gen = generations.get(node.id) ?? 0;
+    node.generation = gen;
+    if (!genGroups.has(gen)) genGroups.set(gen, []);
+    genGroups.get(gen).push(node);
+  }
+
+  const numGens = genGroups.size;
+  if (numGens === 0) return;
+
+  const sortedGens = [...genGroups.keys()].sort((a, b) => a - b);
+  const rowHeight = Math.min(120, (height - 100) / Math.max(numGens, 1));
+  const topPadding = 60;
+
+  // Order nodes within each generation: place spouses adjacent
+  for (const gen of sortedGens) {
+    const group = genGroups.get(gen);
+    const ordered = [];
+    const placed = new Set();
+
+    for (const node of group) {
+      if (placed.has(node.id)) continue;
+      ordered.push(node);
+      placed.add(node.id);
+
+      // Find spouse in same generation and place adjacent
+      const person = tree.persons.get(node.id);
+      if (person) {
+        for (const spouseId of person.spouseIds) {
+          const spouseNode = group.find(n => n.id === spouseId);
+          if (spouseNode && !placed.has(spouseId)) {
+            ordered.push(spouseNode);
+            placed.add(spouseId);
+          }
+        }
+      }
+    }
+
+    genGroups.set(gen, ordered);
+  }
+
+  // Assign positions
+  for (let i = 0; i < sortedGens.length; i++) {
+    const gen = sortedGens[i];
+    const group = genGroups.get(gen);
+    const y = topPadding + i * rowHeight;
+    const spacing = Math.min(140, (width - 80) / Math.max(group.length, 1));
+    const totalWidth = (group.length - 1) * spacing;
+    const startX = (width - totalWidth) / 2;
+
+    for (let j = 0; j < group.length; j++) {
+      group[j].x = startX + j * spacing;
+      group[j].y = y;
+    }
+  }
+}
 
 /**
  * Render the family tree into the given container.
@@ -92,8 +161,6 @@ export function renderFamilyTree(container, tree, options = {}) {
       alive: person.alive,
       isTestator: id === tree.testatorId,
       rapStatus,
-      x: width / 2 + (Math.random() - 0.5) * 200,
-      y: height / 2 + (Math.random() - 0.5) * 200,
     });
   }
 
@@ -112,13 +179,17 @@ export function renderFamilyTree(container, tree, options = {}) {
     }
   }
 
-  // Force simulation
-  const simulation = d3.forceSimulation(nodes)
-    .force('link', d3.forceLink(links).id(d => d.id).distance(d => d.type === 'spouse' ? 80 : 120).strength(0.8))
-    .force('charge', d3.forceManyBody().strength(-400))
-    .force('center', d3.forceCenter(width / 2, height / 2))
-    .force('collision', d3.forceCollide().radius(NODE_RADIUS + 15))
-    .force('y', d3.forceY().strength(0.05));
+  // Compute hierarchical layout (generations as rows)
+  computeLayout(nodes, links, tree, width, height);
+
+  // Build a lookup map for link resolution
+  const nodeById = new Map(nodes.map(n => [n.id, n]));
+
+  // Resolve link source/target to node objects
+  for (const l of links) {
+    if (typeof l.source === 'string') l.source = nodeById.get(l.source);
+    if (typeof l.target === 'string') l.target = nodeById.get(l.target);
+  }
 
   // ─── Draw links ───
   const link = svg.append('g')
@@ -126,16 +197,25 @@ export function renderFamilyTree(container, tree, options = {}) {
     .data(links)
     .join('line')
     .attr('stroke', d => d.type === 'spouse' ? COLORS.spouse : COLORS.child)
-    .attr('stroke-width', d => d.type === 'spouse' ? 2 : 2)
+    .attr('stroke-width', 2)
     .attr('stroke-dasharray', d => d.type === 'spouse' ? '6,4' : 'none')
     .attr('opacity', 0.6)
-    .attr('marker-end', d => d.type === 'child' ? 'url(#arrow-child)' : 'none');
+    .attr('marker-end', d => d.type === 'child' ? 'url(#arrow-child)' : 'none')
+    .attr('x1', d => d.source.x)
+    .attr('y1', d => d.source.y)
+    .attr('x2', d => d.target.x)
+    .attr('y2', d => d.target.y);
 
   // ─── Link labels ───
   const linkLabel = svg.append('g')
     .selectAll('g')
     .data(links.filter(d => d.type === 'spouse'))
-    .join('g');
+    .join('g')
+    .attr('transform', d => {
+      const mx = (d.source.x + d.target.x) / 2;
+      const my = (d.source.y + d.target.y) / 2;
+      return `translate(${mx},${my})`;
+    });
 
   // Background pill for label readability
   linkLabel.append('rect')
@@ -159,7 +239,6 @@ export function renderFamilyTree(container, tree, options = {}) {
     const g = d3.select(this);
     const text = g.select('text');
     const rect = g.select('rect');
-    // Defer sizing to after the DOM is ready
     setTimeout(() => {
       const bbox = text.node()?.getBBox();
       if (bbox) {
@@ -175,20 +254,30 @@ export function renderFamilyTree(container, tree, options = {}) {
     .data(nodes)
     .join('g')
     .attr('cursor', 'grab')
+    .attr('transform', d => `translate(${d.x},${d.y})`)
     .call(d3.drag()
-      .on('start', (event, d) => {
-        if (!event.active) simulation.alphaTarget(0.3).restart();
-        d.fx = d.x;
-        d.fy = d.y;
+      .on('start', function (event, d) {
+        d3.select(this).attr('cursor', 'grabbing');
       })
-      .on('drag', (event, d) => {
-        d.fx = event.x;
-        d.fy = event.y;
+      .on('drag', function (event, d) {
+        d.x = event.x;
+        d.y = event.y;
+        d3.select(this).attr('transform', `translate(${d.x},${d.y})`);
+        // Update connected links
+        link.filter(l => l.source.id === d.id)
+          .attr('x1', d.x).attr('y1', d.y);
+        link.filter(l => l.target.id === d.id)
+          .attr('x2', d.x).attr('y2', d.y);
+        // Update spouse labels
+        linkLabel.filter(l => l.source.id === d.id || l.target.id === d.id)
+          .attr('transform', l => {
+            const mx = (l.source.x + l.target.x) / 2;
+            const my = (l.source.y + l.target.y) / 2;
+            return `translate(${mx},${my})`;
+          });
       })
-      .on('end', (event, d) => {
-        if (!event.active) simulation.alphaTarget(0);
-        d.fx = null;
-        d.fy = null;
+      .on('end', function () {
+        d3.select(this).attr('cursor', 'grab');
       })
     );
 
@@ -256,25 +345,6 @@ export function renderFamilyTree(container, tree, options = {}) {
     showContextMenu(event, d, tree, container, onTreeChange);
   });
 
-  // Tick function
-  simulation.on('tick', () => {
-    link
-      .attr('x1', d => d.source.x)
-      .attr('y1', d => d.source.y)
-      .attr('x2', d => d.target.x)
-      .attr('y2', d => d.target.y);
-
-    linkLabel
-      .attr('transform', d => {
-        const mx = (d.source.x + d.target.x) / 2;
-        const my = (d.source.y + d.target.y) / 2;
-        return `translate(${mx},${my})`;
-      });
-
-    nodeGroup.attr('transform', d => `translate(${d.x},${d.y})`);
-  });
-
-  // ─── Legend ───
   const legendY = height - 140;
   const legend = svg.append('g').attr('transform', `translate(16, ${legendY})`);
 
@@ -321,7 +391,7 @@ export function renderFamilyTree(container, tree, options = {}) {
   spouseEdge.append('text').attr('x', 32).attr('dy', '0.35em').text('♥ Spouse')
     .attr('fill', COLORS.spouse).attr('font-size', '10px');
 
-  return { simulation, svg };
+  return { svg };
 }
 
 /**
